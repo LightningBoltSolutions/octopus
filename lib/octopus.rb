@@ -11,10 +11,16 @@ module Octopus
   end
 
   def self.config()
-    @config ||= HashWithIndifferentAccess.new(YAML.load(ERB.new(File.open(Octopus.directory() + "/config/shards.yml").read()).result))[Octopus.env()]
+    file_name = Octopus.directory() + "/config/shards.yml"
 
-    if @config && @config['environments']
-      self.environments = @config['environments']
+    if File.exists? file_name
+      @config ||= HashWithIndifferentAccess.new(YAML.load(ERB.new(File.open(file_name).read()).result))[Octopus.env()]
+
+      if @config && @config['environments']
+        self.environments = @config['environments']
+      end
+    else
+      @config ||= HashWithIndifferentAccess.new
     end
 
     @config
@@ -49,6 +55,12 @@ module Octopus
     defined?(Rails) 
   end
   
+  def self.shards=(shards)
+    @config ||= HashWithIndifferentAccess.new
+    @config[rails_env()] = HashWithIndifferentAccess.new(shards)
+    ActiveRecord::Base.connection.initialize_shards(@config)
+  end
+  
   def self.using(shard, &block)
     ActiveRecord::Base.hijack_initializer()
     conn = ActiveRecord::Base.connection
@@ -71,6 +83,7 @@ require "octopus/association"
 if Octopus.rails3?
   require "octopus/rails3/association"
   require "octopus/rails3/persistence"
+  require "octopus/rails3/arel"
 else
   require "octopus/rails2/association"
   require "octopus/rails2/persistence"
@@ -78,4 +91,4 @@ end
 
 require "octopus/proxy"
 require "octopus/scope_proxy"
-
+require "octopus/logger"
